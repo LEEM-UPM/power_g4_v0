@@ -363,6 +363,8 @@ void CAN1_Send(const uint8_t *data, uint8_t len)
       break;
   }
 
+  txHeader.Identifier = 0x123;
+
   status = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &txHeader, txData);
 
   if (status != HAL_OK)
@@ -426,7 +428,7 @@ void CAN2_Send(const uint8_t *data, uint8_t len)
       break;
   }
 
-  txHeader.Identifier = 0b10000000000;
+  txHeader.Identifier = 0x400;
 
   status = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &txHeader, txData);
 
