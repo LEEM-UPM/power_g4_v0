@@ -63,14 +63,8 @@ void Error_Handler(void);
 #define OUT_11V_1_EN_GPIO_Port GPIOC
 #define Pyro1A_EN_Pin GPIO_PIN_15
 #define Pyro1A_EN_GPIO_Port GPIOC
-#define VSensing_5V_Pin GPIO_PIN_0
-#define VSensing_5V_GPIO_Port GPIOA
 #define ASensing_11V_Pin GPIO_PIN_1
 #define ASensing_11V_GPIO_Port GPIOA
-#define VSensing_11V_Pin GPIO_PIN_2
-#define VSensing_11V_GPIO_Port GPIOA
-#define ASensing_5V_Pin GPIO_PIN_3
-#define ASensing_5V_GPIO_Port GPIOA
 #define Pyro1_DAC_Pin GPIO_PIN_4
 #define Pyro1_DAC_GPIO_Port GPIOA
 #define VSensing_Pyro1_Pin GPIO_PIN_5
@@ -93,8 +87,6 @@ void Error_Handler(void);
 #define VSensing_Pyro2_GPIO_Port GPIOB
 #define ASensing_Pyro2_Pin GPIO_PIN_13
 #define ASensing_Pyro2_GPIO_Port GPIOB
-#define ASensing_3V3_Pin GPIO_PIN_14
-#define ASensing_3V3_GPIO_Port GPIOB
 #define VSensing_3V3_Pin GPIO_PIN_15
 #define VSensing_3V3_GPIO_Port GPIOB
 #define Pyro2B_Cont_Pin GPIO_PIN_8
@@ -107,8 +99,6 @@ void Error_Handler(void);
 #define OUT_11V_4_EN_GPIO_Port GPIOB
 #define OUT_11V_3_EN_Pin GPIO_PIN_4
 #define OUT_11V_3_EN_GPIO_Port GPIOB
-#define FDCAN2_RX_Pin GPIO_PIN_5
-#define FDCAN2_RX_GPIO_Port GPIOB
 #define OUT_11V_2_EN_Pin GPIO_PIN_9
 #define OUT_11V_2_EN_GPIO_Port GPIOB
 

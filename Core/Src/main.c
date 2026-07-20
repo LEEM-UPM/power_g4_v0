@@ -28,6 +28,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "stm32g4xx_hal_gpio.h"
+#include "utils_gpio.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,12 +45,16 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define PYRO_ON_TIME_MS 1000  // tiempo en milisegundos que los pirotecnicos permanecen encendidos
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+uint32_t pyro1A_on_counter = 0;  // variables que cronometraran el tiempo de encendido de los canales pirotecnicos
+uint32_t pyro1B_on_counter = 0;
+uint32_t pyro2A_on_counter = 0;
+uint32_t pyro2B_on_counter = 0;
 
 /* USER CODE END PV */
 
@@ -55,23 +62,14 @@
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-static void CAN1_Setup(void);
-static void CAN1_SendCounter(uint8_t *data);  /* data: pointer to 8-byte array */
-static void CAN2_Setup(void);
-static void CAN2_SendCounter(uint8_t *data);
+
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-static FDCAN_TxHeaderTypeDef txHeader;
-static FDCAN_RxHeaderTypeDef rxHeader;
-static uint8_t txData[8] = {"TETE"};
-static uint8_t rxData[8];
-static volatile uint8_t rxFlag = 0;
-static uint32_t canErrorCounter = 0;
-static uint8_t sendCounter = 0;  /* Contador interno que incrementa cada envío */
+
 
 
 /* USER CODE END 0 */
@@ -112,41 +110,96 @@ int main(void)
   MX_FDCAN1_Init();
   MX_FDCAN2_Init();
   MX_I2C1_Init();
-  MX_OPAMP1_Init();
   MX_OPAMP2_Init();
   MX_OPAMP3_Init();
   MX_OPAMP4_Init();
-  MX_OPAMP5_Init();
   MX_OPAMP6_Init();
+  MX_ADC4_Init();
   /* USER CODE BEGIN 2 */
 
-  CAN2_Setup();
+  Sys_init();
+
+  AllPyroCheck();
+
+  Pyro1_ON(); // encendemos la alimentacion de los pyrotecnicos
+  Pyro2_ON();
+
+  if (!CAN_Test()) // Test CAN1 con CAN2, han de estar conectados para que funcione
+  {
+    Error_Handler();
+  }
+
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+
+
   while (1)
   {
-    // Verificar si hay mensajes en el FIFO
-    if (HAL_FDCAN_GetRxFifoFillLevel(&hfdcan2, FDCAN_RX_FIFO0) > 0)
-    {
-      FDCAN_RxHeaderTypeDef rxh;
-      uint8_t data[8] = {0};
-      
-      if (HAL_FDCAN_GetRxMessage(&hfdcan2, FDCAN_RX_FIFO0, &rxh, data) == HAL_OK)
-      {
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+    uint8_t payload[1] = { 0x05 }; // seleccionar comando para hacer la prueba de envio
+    CAN2_Send(payload, 1);
+
+    if(CAN1_Available()) {
+      uint8_t *rx = CAN1_PollRx();
+      if (rx[0] == 0x01) { // activar pyro 1A
+        pyro1A_on_counter = HAL_GetTick();
+        Pyro1A_ON();
+      }
+      if(rx[0] == 0x02) { // activar pyro 1B
+        pyro1B_on_counter = HAL_GetTick();
+        Pyro1B_ON();
+      }
+      if(rx[0] == 0x03) { // activar pyro 2A
+        pyro2A_on_counter = HAL_GetTick();
+        Pyro2A_ON();
+      }
+      if (rx[0] == 0x04) { // activar pyro 2B
+        pyro2B_on_counter = HAL_GetTick();
+        Pyro2B_ON();
+      }
+      if (rx[0] == 0x05) { // continuity request
+
+        bool continuity1A = Pyro1A_Continuity();
+        bool continuity1B = Pyro1B_Continuity();
+        bool continuity2A = Pyro2A_Continuity();
+        bool continuity2B = Pyro2B_Continuity();
+
+        uint8_t continuity_status = 0;
+        if (continuity1A) continuity_status |= 0x01;
+        if (continuity1B) continuity_status |= 0x02;
+        if (continuity2A) continuity_status |= 0x04;
+        if (continuity2B) continuity_status |= 0x08;
+
+        CAN1_Send(&continuity_status, 1);
         
-        // Si data[0] == 0x01, encender pyro 1 segundo
-        if(data[0] == 0x01) {
-          HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_SET);  /// pin pirotecnico
-          HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);  /// pin que habilita la alimentacion del pirotecnico
-          HAL_Delay(1000);
-          HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, GPIO_PIN_RESET);
-          HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);   
-        }
       }
     }
+
+    {  // apagado automatico de los pirotecnicos despues de un tiempo
+      if ((pyro1A_on_counter != 0U) && ((HAL_GetTick() - pyro1A_on_counter) >= PYRO_ON_TIME_MS)) {
+        Pyro1A_OFF();
+        pyro1A_on_counter = 0;
+      }
+      if ((pyro1B_on_counter != 0U) && ((HAL_GetTick() - pyro1B_on_counter) >= PYRO_ON_TIME_MS)) {
+        Pyro1B_OFF();
+        pyro1B_on_counter = 0;
+      }
+      if ((pyro2A_on_counter != 0U) && ((HAL_GetTick() - pyro2A_on_counter) >= PYRO_ON_TIME_MS)) {
+        Pyro2A_OFF();
+        pyro2A_on_counter = 0;
+      }
+      if ((pyro2B_on_counter != 0U) && ((HAL_GetTick() - pyro2B_on_counter) >= PYRO_ON_TIME_MS)) {
+        Pyro2B_OFF();
+        pyro2B_on_counter = 0;
+      }
+    }
+
   }
   /* USER CODE END 3 */
 }
@@ -190,213 +243,8 @@ void SystemClock_Config(void)
     Error_Handler();
   }
 }
-
 /* USER CODE BEGIN 4 */
 
-static void CAN1_Setup(void)
-{
-  FDCAN_FilterTypeDef filter;
-
-  /* Enable FDCAN interrupts in NVIC */
-  HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
-  HAL_NVIC_SetPriority(FDCAN1_IT1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(FDCAN1_IT1_IRQn);
-
-  filter.IdType = FDCAN_STANDARD_ID;
-  filter.FilterIndex = 0;
-  filter.FilterType = FDCAN_FILTER_MASK;
-  filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-  filter.FilterID1 = 0x000;  // Acepta cualquier ID
-  filter.FilterID2 = 0x000;  // Máscara 0 = no importa ningún bit
-
-  if (HAL_FDCAN_ConfigFilter(&hfdcan1, &filter) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  // Configuración global: ACEPTAR todos los mensajes que no pasen por filtros
-  if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1,
-                                   FDCAN_ACCEPT_IN_RX_FIFO0,  // Aceptar std IDs sin filtro
-                                   FDCAN_ACCEPT_IN_RX_FIFO0,  // Aceptar ext IDs sin filtro
-                                   FDCAN_REJECT_REMOTE,
-                                   FDCAN_REJECT_REMOTE) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  if (HAL_FDCAN_ActivateNotification(&hfdcan1,
-                                     FDCAN_IT_RX_FIFO0_NEW_MESSAGE |
-                                     FDCAN_IT_BUS_OFF |
-                                     FDCAN_IT_ERROR_WARNING |
-                                     FDCAN_IT_ERROR_PASSIVE,
-                                     0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  txHeader.Identifier = 0x123;
-  txHeader.IdType = FDCAN_STANDARD_ID;
-  txHeader.TxFrameType = FDCAN_DATA_FRAME;
-  txHeader.DataLength = FDCAN_DLC_BYTES_8;
-  txHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-  txHeader.BitRateSwitch = FDCAN_BRS_OFF;
-  txHeader.FDFormat = FDCAN_CLASSIC_CAN;
-  txHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
-  txHeader.MessageMarker = 0;
-
-  for (uint8_t i = 0; i < sizeof(txData); i++)
-  {
-    txData[i] = 0;
-  }
-}
-
-static void CAN1_SendCounter(uint8_t *data)
-{
-  HAL_StatusTypeDef status;
-
-  /* Copy 8 bytes from input parameter to tx buffer */
-  for (uint8_t i = 0; i < 8; i++)
-  {
-    txData[i] = data[i];
-  }
-  
-  status = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &txHeader, txData);
-  
-  if (status == HAL_OK)
-  {
-    sendCounter++;  /* Increment counter on successful send */
-  }
-  else
-  {
-    canErrorCounter++;
-  }
-}
-
-static void CAN2_Setup(void)
-{
-  FDCAN_FilterTypeDef filter;
-
-  // SIN interrupciones - solo polling
-
-  filter.IdType = FDCAN_STANDARD_ID;
-  filter.FilterIndex = 0;
-  filter.FilterType = FDCAN_FILTER_MASK;
-  filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-  filter.FilterID1 = 0x123;  // Solo acepta ID 0x123
-  filter.FilterID2 = 0x7FF;  // Máscara completa - todos los bits deben coincidir
-
-  if (HAL_FDCAN_ConfigFilter(&hfdcan2, &filter) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  // Configuración global: RECHAZAR todos los mensajes que no pasen por filtros
-  if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan2,
-                                   FDCAN_REJECT,
-                                   FDCAN_REJECT,
-                                   FDCAN_REJECT_REMOTE,
-                                   FDCAN_REJECT_REMOTE) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  if (HAL_FDCAN_Start(&hfdcan2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  // NO activar interrupciones - usar polling solamente
-
-  txHeader.Identifier = 0x123;
-  txHeader.IdType = FDCAN_STANDARD_ID;
-  txHeader.TxFrameType = FDCAN_DATA_FRAME;
-  txHeader.DataLength = FDCAN_DLC_BYTES_8;
-  txHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-  txHeader.BitRateSwitch = FDCAN_BRS_OFF;
-  txHeader.FDFormat = FDCAN_CLASSIC_CAN;
-  txHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
-  txHeader.MessageMarker = 0;
-
-  for (uint8_t i = 0; i < sizeof(txData); i++)
-  {
-    txData[i] = 0;
-  }
-}
-
-static void CAN2_SendCounter(uint8_t *data)
-{
-  HAL_StatusTypeDef status;
-
-  /* Copy 8 bytes from input parameter to tx buffer */
-  for (uint8_t i = 0; i < 8; i++)
-  {
-    txData[i] = data[i];
-  }
-  
-  status = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &txHeader, txData);
-  
-  if (status == HAL_OK)
-  {
-    sendCounter++;  /* Increment counter on successful send */
-  }
-  else
-  {
-    canErrorCounter++;
-  }
-}
-
-void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
-{
-  if ((hfdcan->Instance == FDCAN1) && ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != 0U))
-  {
-    if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rxHeader, rxData) == HAL_OK)
-    {
-      rxFlag = 1;
-      /* Toggle LED to indicate message received */
-      HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_11);
-    }
-  }
-  
-  if ((hfdcan->Instance == FDCAN2) && ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != 0U))
-  {
-    if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rxHeader, rxData) == HAL_OK)
-    {
-      rxFlag = 1;
-      /* Toggle LED to indicate message received */
-      HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_10);
-    }
-  }
-}
-
-void HAL_FDCAN_ErrorCallback(FDCAN_HandleTypeDef *hfdcan)
-{
-  if (hfdcan->Instance == FDCAN1)
-  {
-    canErrorCounter++;
-  }
-  if (hfdcan->Instance == FDCAN2)
-  {
-    canErrorCounter++;
-  }
-}
-
-void HAL_FDCAN_ErrorStatusCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t ErrorStatusITs)
-{
-  if (hfdcan->Instance == FDCAN1)
-  {
-    canErrorCounter++;
-  }
-  if (hfdcan->Instance == FDCAN2)
-  {
-    canErrorCounter++;
-  }
-}
 
 /* USER CODE END 4 */
 
