@@ -4,11 +4,15 @@
 
 #define CAN_STD_ID_MAX        0x7FFU
 #define CAN_CLASSIC_MAX_BYTES 8U
+/* Los FDCAN van en modo CAN FD: HAL_FDCAN_GetRxMessage() copia tantos bytes
+ * como indique el DLC de la trama recibida, hasta 64. Todo buffer de
+ * recepción debe tener este tamaño para no desbordarse. */
+#define CAN_FD_MAX_BYTES      64U
 
 static FDCAN_TxHeaderTypeDef txHeader;
 static FDCAN_RxHeaderTypeDef rxHeader;
 static uint8_t txData[8];
-static uint8_t rxData[8];
+static uint8_t rxData[CAN_FD_MAX_BYTES];
 static volatile uint8_t rxFlag = 0;
 static uint32_t canErrorCounter = 0;
 
@@ -138,7 +142,7 @@ HAL_StatusTypeDef CAN_Utils_PollRx(FDCAN_HandleTypeDef *hfdcan,
 {
     HAL_StatusTypeDef status;
 
-    if ((hfdcan == NULL) || (rxHeader == NULL) || (rxData == NULL) || (rxDataSize < CAN_CLASSIC_MAX_BYTES))
+    if ((hfdcan == NULL) || (rxHeader == NULL) || (rxData == NULL) || (rxDataSize < CAN_FD_MAX_BYTES))
     {
         return HAL_ERROR;
     }
@@ -290,7 +294,7 @@ bool CAN_Test(void) {
     HAL_Delay(100);
     
     FDCAN_RxHeaderTypeDef rxHeader;
-    uint8_t rxData[8];
+    uint8_t rxData[CAN_FD_MAX_BYTES];
     uint8_t rxLen;
     if (CAN_Utils_PollRx(&hfdcan1, &rxHeader, rxData, sizeof(rxData), &rxLen) != HAL_OK) {
         return false;
