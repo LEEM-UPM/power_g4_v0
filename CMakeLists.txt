@@ -48,14 +48,27 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
-    User/Src/utils_gpio.c
-    User/Src/utils_can.c
+    # App: lógica de la placa
+    App/sys_init.c
+    App/pyro_control.c
+    App/power_monitor.c
+    # Drivers propios
+    Drivers/Pyro/pyro.c
+    Drivers/Current_sense/current_sense.c
+    Drivers/Analog/analog.c
+    Drivers/Can_driver/canNode.c
+    Drivers/Can_driver/can2.c
+    Drivers/Can_driver/utils_can.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
-    User/Inc
+    App
+    Drivers/Pyro
+    Drivers/Current_sense
+    Drivers/Analog
+    Drivers/Can_driver
 )
 
 # Add project symbols (macros)

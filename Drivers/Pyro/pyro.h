@@ -1,11 +1,15 @@
-#ifndef UTILS_GPIO_H
-#define UTILS_GPIO_H
+#ifndef PYRO_H
+#define PYRO_H
 
+/*
+ * Canales pirotécnicos: alimentación de 7 V de cada par (Pyro1/Pyro2), MOSFET
+ * de cada canal (1A, 1B, 2A, 2B) y lectura de continuidad.
+ * Documentación de cada función en README_UTILIDADES.txt.
+ */
 
-#include "utils_can.h"
-#include "main.h"
 #include <stdbool.h>
-#include "adc.h"
+
+#include "main.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,15 +36,8 @@ bool Pyro2B_Continuity(void);
 
 void AllPyroCheck(void);
 
-float ThreeV_Current(void);
-float FiveV_Current(void);
-float ElevenV_Current(void);
-
-void Sys_init(void);
-
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* UTILS_GPIO_H */
+#endif /* PYRO_H */

@@ -29,7 +29,11 @@
 /* USER CODE BEGIN Includes */
 
 #include "stm32g4xx_hal_gpio.h"
-#include "utils_gpio.h"
+#include "canNode.h"
+#include "pyro.h"
+#include "power_monitor.h"
+#include "pyro_control.h"
+#include "sys_init.h"
 
 /* USER CODE END Includes */
 
@@ -45,16 +49,12 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define PYRO_ON_TIME_MS 1000  // tiempo en milisegundos que los pirotecnicos permanecen encendidos
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint32_t pyro1A_on_counter = 0;  // variables que cronometraran el tiempo de encendido de los canales pirotecnicos
-uint32_t pyro1B_on_counter = 0;
-uint32_t pyro2A_on_counter = 0;
-uint32_t pyro2B_on_counter = 0;
 
 /* USER CODE END PV */
 
@@ -119,15 +119,12 @@ int main(void)
 
   Sys_init();
 
+  while(!CanNode_PollWakeUp()) {} // espera a que le llegue el wake up
+
   AllPyroCheck();
 
   Pyro1_ON(); // encendemos la alimentacion de los pyrotecnicos
   Pyro2_ON();
-
-  if (!CAN_Test()) // Test CAN1 con CAN2, han de estar conectados para que funcione
-  {
-    Error_Handler();
-  }
 
 
   /* USER CODE END 2 */
@@ -142,63 +139,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    uint8_t payload[1] = { 0x05 }; // seleccionar comando para hacer la prueba de envio
-    CAN2_Send(payload, 1);
-
-    if(CAN1_Available()) {
-      uint8_t *rx = CAN1_PollRx();
-      if (rx[0] == 0x01) { // activar pyro 1A
-        pyro1A_on_counter = HAL_GetTick();
-        Pyro1A_ON();
-      }
-      if(rx[0] == 0x02) { // activar pyro 1B
-        pyro1B_on_counter = HAL_GetTick();
-        Pyro1B_ON();
-      }
-      if(rx[0] == 0x03) { // activar pyro 2A
-        pyro2A_on_counter = HAL_GetTick();
-        Pyro2A_ON();
-      }
-      if (rx[0] == 0x04) { // activar pyro 2B
-        pyro2B_on_counter = HAL_GetTick();
-        Pyro2B_ON();
-      }
-      if (rx[0] == 0x05) { // continuity request
-
-        bool continuity1A = Pyro1A_Continuity();
-        bool continuity1B = Pyro1B_Continuity();
-        bool continuity2A = Pyro2A_Continuity();
-        bool continuity2B = Pyro2B_Continuity();
-
-        uint8_t continuity_status = 0;
-        if (continuity1A) continuity_status |= 0x01;
-        if (continuity1B) continuity_status |= 0x02;
-        if (continuity2A) continuity_status |= 0x04;
-        if (continuity2B) continuity_status |= 0x08;
-
-        CAN1_Send(&continuity_status, 1);
-        
-      }
-    }
-
-    {  // apagado automatico de los pirotecnicos despues de un tiempo
-      if ((pyro1A_on_counter != 0U) && ((HAL_GetTick() - pyro1A_on_counter) >= PYRO_ON_TIME_MS)) {
-        Pyro1A_OFF();
-        pyro1A_on_counter = 0;
-      }
-      if ((pyro1B_on_counter != 0U) && ((HAL_GetTick() - pyro1B_on_counter) >= PYRO_ON_TIME_MS)) {
-        Pyro1B_OFF();
-        pyro1B_on_counter = 0;
-      }
-      if ((pyro2A_on_counter != 0U) && ((HAL_GetTick() - pyro2A_on_counter) >= PYRO_ON_TIME_MS)) {
-        Pyro2A_OFF();
-        pyro2A_on_counter = 0;
-      }
-      if ((pyro2B_on_counter != 0U) && ((HAL_GetTick() - pyro2B_on_counter) >= PYRO_ON_TIME_MS)) {
-        Pyro2B_OFF();
-        pyro2B_on_counter = 0;
-      }
-    }
+    CanNode_Poll();       // lee CAN1: wake up y comandos de pirotecnia (ICD, 6)
+    PyroControl_Update(); // enciende, mide continuidad y apaga los pirotécnicos
+    PowerMonitor_Update(); // responde a CMD_POWER_RAILS con tensiones y corrientes
 
   }
   /* USER CODE END 3 */

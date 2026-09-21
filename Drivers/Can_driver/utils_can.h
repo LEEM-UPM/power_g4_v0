@@ -1,6 +1,12 @@
 #ifndef UTILS_CAN_H
 #define UTILS_CAN_H
 
+/*
+ * Utilidades CAN genéricas (cualquier FDCAN): filtro por máscara, envío con
+ * ID estándar en formato clásico y lectura de la RX FIFO0.
+ * CAN1 va en canNode.h y CAN2 en can2.h.
+ */
+
 #include "main.h"
 #include "fdcan.h"
 #include <stdbool.h>
@@ -33,15 +39,6 @@ HAL_StatusTypeDef CAN_Utils_PollRx(FDCAN_HandleTypeDef *hfdcan,
                                    uint8_t *outLen);
 
 uint8_t CAN_Utils_DlcToLen(uint32_t dataLength);
-
-void CAN_Setup(void);
-bool CAN_Test(void);
-bool CAN1_Available(void);
-uint8_t *CAN1_PollRx(void);
-void CAN1_Send(const uint8_t *data, uint8_t len);
-void CAN2_Send(const uint8_t *data, uint8_t len);
-
-
 
 #ifdef __cplusplus
 }
